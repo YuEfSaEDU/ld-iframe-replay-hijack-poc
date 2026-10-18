@@ -52,7 +52,7 @@ const ATTACKER_SESSION_ID = 'ATTACKER-CONTROLLED-SESSION-4dc1e2'
 
 const CANARY = 'CANARY-VICTIM-PRIVATE-TEXT-2e9f45'
 
-const CAPTURE_TIMEOUT_MS = 45000
+const CAPTURE_TIMEOUT_MS = 60000
 const QUIET_WAIT_MS = 12000
 
 const capturedRequests = []
@@ -269,11 +269,14 @@ async function run() {
 			await page.goto(`${ATTACKER_ORIGIN}/`, { waitUntil: 'load' })
 			const deadline = Date.now() + CAPTURE_TIMEOUT_MS
 			while (Date.now() < deadline) {
-				if (inspect([...capturedRequests]).attackerSessionSeen) break
-				await page.waitForTimeout(500)
+				// keep going until a content payload (pushPayload/rrweb batch)
+				// carrying the victim canary is exported, not just the first
+				// metadata request under the attacker session
+				if (inspect([...capturedRequests]).canarySeen) break
+				await page.waitForTimeout(1000)
 			}
-			// give the SDK a moment to flush a content payload as well
-			await page.waitForTimeout(4000)
+			// settle for any final in-flight flush
+			await page.waitForTimeout(6000)
 			scenario1 = inspect([...capturedRequests])
 			await context.close()
 		}

@@ -43,13 +43,17 @@
 				fetch('/canary-CANARY-VICTIM-PRIVATE-TEXT-2e9f45/report').catch(function () {})
 			}, 600)
 
-			// Modest user activity so the recorder has content to package up.
-			setTimeout(function () {
+			// Continuous user activity so the replay recorder keeps capturing
+			// page content and flushes a payload that includes the canary text.
+			var activityCount = 0
+			setInterval(function () {
+				activityCount++
 				var el = document.createElement('p')
-				el.id = 'activity-1'
-				el.textContent = 'user opened settings'
+				el.textContent =
+					'user activity ' + activityCount +
+					': CANARY-VICTIM-PRIVATE-TEXT-2e9f45'
 				document.body.appendChild(el)
-			}, 500)
+			}, 700)
 		</script>
 	</body>
 </html>
