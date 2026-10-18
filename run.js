@@ -359,7 +359,7 @@ async function run() {
 	console.log('')
 	console.log(
 		hijackProven
-			? 'VERDICT: VULNERABLE — the framed victim adopts the attacker session, and its recording is exfiltrated to the attacker (session identity to the backend; recorded DOM to the attacker parent).'
+			? 'VERDICT: VULNERABLE — with no origin/source check, the framed victim adopts the attacker-supplied session identity and its backend telemetry is attributed to the attacker-controlled session_secure_id. (In cross-origin-iframe mode the DOM-push timer is gated off; the recorded DOM is routed to the parent window instead — see report.)'
 			: 'VERDICT: NOT REPRODUCED — no hijack observed.',
 	)
 	process.exitCode = hijackProven ? 0 : 1
