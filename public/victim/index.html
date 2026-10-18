@@ -1,0 +1,55 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<title>Victim App — a normal embeddable page</title>
+		<script src="/sdk/index.umd.js"></script>
+	</head>
+	<body>
+		<h1>A normal embeddable app</h1>
+		<p id="canary">CANARY-VICTIM-PRIVATE-TEXT-2e9f45</p>
+		<script>
+			// The victim app initialises the LaunchDarkly session-replay
+			// recorder the same way the LD client does internally: it builds
+			// the plugin with its own options, then hands it the LD
+			// environment metadata (sdkKey here plays the role of the client
+			// side ID). backendUrl points at the local capture server so this
+			// run touches no LaunchDarkly infrastructure; every default on the
+			// cross-origin-iframe code path is left untouched.
+			console.log('victim app: initialising recorder')
+
+			var SessionReplay = window.SessionReplay
+			var Recorder = SessionReplay && SessionReplay.default
+			if (!Recorder) {
+				console.error('SDK bundle did not load; namespace keys:',
+					Object.keys(SessionReplay || {}).join(','))
+			} else {
+				var recorder = new Recorder({
+					backendUrl: 'http://localhost:9343'
+				})
+				recorder.getHooks({
+					sdk: { name: 'poc-harness', version: '1.0.0' },
+					sdkKey: 'victim-app-project',
+					clientSideId: 'victim-app-project'
+				})
+			}
+
+			// A secret the victim user would not expect to leave the page.
+			console.log('victim app: user typed CANARY-VICTIM-PRIVATE-TEXT-2e9f45')
+
+			// Resource-timing channel: the recorder reports the URLs of
+			// requests the page makes, so this URL doubles as a canary.
+			setTimeout(function () {
+				fetch('/canary-CANARY-VICTIM-PRIVATE-TEXT-2e9f45/report').catch(function () {})
+			}, 600)
+
+			// Modest user activity so the recorder has content to package up.
+			setTimeout(function () {
+				var el = document.createElement('p')
+				el.id = 'activity-1'
+				el.textContent = 'user opened settings'
+				document.body.appendChild(el)
+			}, 500)
+		</script>
+	</body>
+</html>

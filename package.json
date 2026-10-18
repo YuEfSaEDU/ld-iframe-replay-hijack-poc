@@ -1,0 +1,15 @@
+{
+  "name": "ld-iframe-replay-hijack-poc",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Runnable PoC: a cross-origin parent page redirects a framed LaunchDarkly session-replay export into an attacker-controlled session using the SDK's unvalidated iframe handshake.",
+  "scripts": {
+    "poc": "node run.js"
+  },
+  "dependencies": {
+    "@launchdarkly/session-replay": "1.2.1"
+  },
+  "devDependencies": {
+    "playwright": "1.64.1"
+  }
+}
