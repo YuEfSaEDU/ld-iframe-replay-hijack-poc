@@ -1,0 +1,25 @@
+name: LD session-replay iframe hijack PoC
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  poc:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run PoC
+        run: node run.js
